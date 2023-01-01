@@ -1,4 +1,7 @@
 {
     "initial temperature": 10000,
-    "max iterations": 100000
+    "max iterations": 100000,
+    "min xi": -500,
+    "max xi": 500,
+    "initial max change": 10
 }

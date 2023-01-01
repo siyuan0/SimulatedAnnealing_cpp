@@ -12,12 +12,12 @@
 #include <utility>
 #include <limits>
 
-#define DIMENSION 6 // to change this define for number of dimensions considered
+#define DIMENSION 2 // to change this define for number of dimensions considered
 
 namespace Schwefel
 {
     static int num_of_evaluations = 0; // track the total number of evaluations of Schwefel's function
-    static thread_local std::mt19937 randomGen;
+    static std::mt19937 randomGen;
 
 class soln
 {
@@ -81,6 +81,11 @@ public:
     }
 };
 
+void setRandomGen(std::mt19937& gen)
+{
+    randomGen = gen;
+}
+
 float l2(soln& s1, soln& s2)
 {  // get the l2 norm of s1-s2
     float sum = 0; 
@@ -88,7 +93,28 @@ float l2(soln& s1, soln& s2)
     return std::pow(sum, 0.5);
 }
 
-void setThreadRandomGenerator(std::mt19937 gen){randomGen = gen;}
+SA_policy<soln> initialiseRuntimeInfo(std::unordered_map<std::string, float>& parameters)
+{
+    soln initialMaxChange{};
+    for(int i=0; i<DIMENSION; i++) initialMaxChange.setX(i, parameters["initial max change"]);
+    return {
+        .temperature = parameters["intial temperature"],
+        .maxChange = initialMaxChange
+    };
+}
+
+soln getRandomSolution(std::unordered_map<std::string, float>& parameters)
+{   // return a random solution within problem constraints
+    soln s{parameters["min xi"], parameters["max xi"]};
+    return s;
+}
+
+soln getNewSolution(std::unordered_map<std::string, float>& parameters,
+                    SA_policy<soln>& runtimeInfo, soln& currSoln)
+{
+
+}
+
 
 soln getBestSoln(std::vector<soln>& population)
 {   // return the best soln in the population
@@ -100,16 +126,6 @@ soln getBestSoln(std::vector<soln>& population)
     return population[idx_best];
 }
 
-std::vector<soln> getInitialPopulation(int size, std::unordered_map<std::string, float>& parameters)
-{   // randomly initialise initial population
-    std::vector<soln> v;
-    for(int i=0; i<size; i++) v.push_back(soln(
-        parameters["min xi"],
-        parameters["max xi"]
-    ));
-    return v;
-}
-
 bool endSearch(std::unordered_map<std::string, float>& parameters)
 {   // end when computational budget is exceeded
     return Schwefel::num_of_evaluations > parameters["max_eval"];
@@ -117,12 +133,14 @@ bool endSearch(std::unordered_map<std::string, float>& parameters)
 
 // store the problem specific methods for the GA core to run on
 static ProblemCtx<soln> problemCtx = {
-    .setRandomGenerator = &setThreadRandomGenerator,
-    .getRandomSolutions = &getInitialPopulation,
-    .getParentIdx = &getParentIdx,
-    .getChildren = &getChildren,
-    .updatePopulation = &updatePopulation,
-    .endSearch = &endSearch
+    .setRandomGenerator = &setRandomGen,
+    .initRuntimeInfo = &initialiseRuntimeInfo,
+    .getRandomSolution = nullptr,
+    .getNewSolution = nullptr,
+    .acceptProbability = nullptr,
+    .updateRuntimeInfo = nullptr,
+    .compareSoln = nullptr,
+    .endSearch = nullptr
 };
 
 } // namespace Schwefel
