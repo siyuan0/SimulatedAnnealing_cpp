@@ -18,17 +18,18 @@ int main(int argc,
         nlohmann::json data = nlohmann::json::parse(f);
         auto jmap = data.get<std::unordered_map<std::string, float>>();
 
-        GA<Schwefel::soln> GAinst(Schwefel::problemCtx, jmap);
-        GAinst.generateInitialPopulation();
-        GAinst.printToFile("populationInitial.txt");
+        SA<Schwefel::soln> SAinst(Schwefel::problemCtx, jmap);
         auto start = std::chrono::high_resolution_clock::now();
-        GAinst.optimise();
+        SAinst.optimise();
         auto finish = std::chrono::high_resolution_clock::now();
         std::cout << "Optimisation took " << 
                 std::chrono::duration_cast<std::chrono::milliseconds>(finish-start).count() << "ms\n";
-        GAinst.printToFile("populationEnd.txt");
+        SAinst.printAllToFile("allSolutions.txt");
+        SAinst.printAcceptedToFile("acceptedSolutions.txt");
         std::cout << "number of function evaluations: " << Schwefel::num_of_evaluations << '\n';
-        std::cout << "best solution: " << Schwefel::getBestSoln(*(GAinst.getPopulation())).print() << '\n';
+        std::cout << "final temperature: " << SAinst.getRuntimeInfo().temperature << '\n';
+        std::cout << "current solution: " << SAinst.getOptimisationResult().first.print() << '\n';
+        std::cout << "best solution: " << SAinst.getOptimisationResult().second.print() << '\n';
     }else
     {
         std::cout << "too many arguments\n";

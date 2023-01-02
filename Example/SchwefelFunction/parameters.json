@@ -1,7 +1,14 @@
 {
-    "initial temperature": 10000,
     "max iterations": 100000,
+    "max eval": 15000,
     "min xi": -500,
     "max xi": 500,
-    "initial max change": 10
+    "initial max change": 400,
+    "alpha": 0.001,
+    "w": 1,
+    "max same temperature chain":50,
+    "min accepted at each temperature": 30,
+    "initial temperature": 10000,
+    "temperature scaling": 0.5,
+    "max temperature steps": 1000
 }

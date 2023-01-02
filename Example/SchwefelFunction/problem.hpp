@@ -45,7 +45,7 @@ public:
         _lbound = lowerbound;
         _ubound = upperbound;
         for(int i=0; i<DIMENSION; i++) x[i] = lowerbound +  float(std::rand()) / RAND_MAX * (upperbound-lowerbound);
-        f = evaluateObjective();
+        f = 0;
     }
 
     soln()
@@ -86,61 +86,105 @@ void setRandomGen(std::mt19937& gen)
     randomGen = gen;
 }
 
-float l2(soln& s1, soln& s2)
-{  // get the l2 norm of s1-s2
-    float sum = 0; 
-    for(int i=0; i<DIMENSION; i++) sum += std::pow(s1.getX(i) - s2.getX(i), 2);
-    return std::pow(sum, 0.5);
-}
-
 SA_policy<soln> initialiseRuntimeInfo(std::unordered_map<std::string, float>& parameters)
 {
     soln initialMaxChange{};
     for(int i=0; i<DIMENSION; i++) initialMaxChange.setX(i, parameters["initial max change"]);
     return {
-        .temperature = parameters["intial temperature"],
-        .maxChange = initialMaxChange
+        .temperature = parameters["initial temperature"],
+        .maxChange = initialMaxChange,
+        .numAcceptedCurrTemp = 0,
+        .numCurrTemp = 0,
+        .numTempSteps = 1
     };
 }
 
 soln getRandomSolution(std::unordered_map<std::string, float>& parameters)
 {   // return a random solution within problem constraints
     soln s{parameters["min xi"], parameters["max xi"]};
+    s.doEval();
     return s;
 }
 
 soln getNewSolution(std::unordered_map<std::string, float>& parameters,
                     SA_policy<soln>& runtimeInfo, soln& currSoln)
-{
-
-}
-
-
-soln getBestSoln(std::vector<soln>& population)
-{   // return the best soln in the population
-    int idx_best = 0;
-    for(int i=0; i<population.size(); i++)
+{   // generate a new solution from the current solution using:
+    // x_new = x_curr + D * u
+    // where D is a diagonal matrix of max change in each dimension
+    // and u is a vector of random values in [-1, 1]
+    soln s{parameters["min xi"], parameters["max xi"]};
+    std::uniform_real_distribution<float> urand{-1.0, 1.0};
+    for(int i=0; i<DIMENSION; i++)
     {
-        if(population[i].getEval() < population[idx_best].getEval()) idx_best = i;
+        float newxi = parameters["max xi"] + 1;
+        while((newxi > parameters["max xi"]) | (newxi < parameters["min xi"]))
+            newxi = currSoln.getX(i) + urand(randomGen) * runtimeInfo.maxChange.getX(i);
+        s.setX(i, newxi);
     }
-    return population[idx_best];
+    s.doEval();
+    return s;
 }
 
-bool endSearch(std::unordered_map<std::string, float>& parameters)
-{   // end when computational budget is exceeded
-    return Schwefel::num_of_evaluations > parameters["max_eval"];
+float acceptProbability(std::unordered_map<std::string, float>& parameters, 
+                        SA_policy<soln>& runtimeInfo, soln& newSoln, soln& currSoln)
+{   // get the acceptance probability of newsoln given curr soln
+    // better solutions are always accepted
+    return std::exp(-(newSoln.getEval() - currSoln.getEval())/runtimeInfo.temperature);
 }
 
-// store the problem specific methods for the GA core to run on
+void updateRuntimeInfo(std::unordered_map<std::string, float>& parameters, 
+                       SA_policy<soln>& runtimeInfo, soln& newSoln, soln& currSoln, bool accepted)
+{
+    if(accepted)
+    {   // new solution is accepted, so we update the max change values
+        for(int i=0; i<DIMENSION; i++) runtimeInfo.maxChange.setX(i, 
+            runtimeInfo.maxChange.getX(i) * (1-parameters["alpha"]) +
+            parameters["alpha"] * parameters["w"] * std::abs(newSoln.getX(i) - currSoln.getX(i))
+        );
+        runtimeInfo.numAcceptedCurrTemp += 1;
+        runtimeInfo.numCurrTemp += 1;
+    }else
+    {
+        runtimeInfo.numCurrTemp += 1;
+    }
+    if((runtimeInfo.numAcceptedCurrTemp > parameters["min accepted at each temperature"]) |
+       (runtimeInfo.numCurrTemp > parameters["max same temperature chain"]))
+    {   // desired length of markov chain at current temperature is reached, so we move forward
+        // the annealing schedule and update the temperature
+        runtimeInfo.temperature *= parameters["temperature scaling"];
+        runtimeInfo.numTempSteps += 1;
+        runtimeInfo.numAcceptedCurrTemp = 0;
+        runtimeInfo.numCurrTemp = 0;
+    }
+}
+
+bool compareSoln(soln& betterSoln, soln& worseSoln)
+{   // compare if the betterSoln is really more optimal than the worseSoln
+    return betterSoln.getEval() < worseSoln.getEval();
+}
+
+bool endSearch(std::unordered_map<std::string, float>& parameters, SA_policy<soln>& runtimeInfo)
+{   // end the algorithm if any conditions are met
+    if((Schwefel::num_of_evaluations > parameters["max eval"]) |
+       (runtimeInfo.numTempSteps > parameters["max temperature steps"]))
+    {
+        return true;
+    }else
+    {
+        return false;
+    }
+}
+
+// store the problem specific methods for the SA core to run on
 static ProblemCtx<soln> problemCtx = {
     .setRandomGenerator = &setRandomGen,
     .initRuntimeInfo = &initialiseRuntimeInfo,
-    .getRandomSolution = nullptr,
-    .getNewSolution = nullptr,
-    .acceptProbability = nullptr,
-    .updateRuntimeInfo = nullptr,
-    .compareSoln = nullptr,
-    .endSearch = nullptr
+    .getRandomSolution = &getRandomSolution,
+    .getNewSolution = &getNewSolution,
+    .acceptProbability = &acceptProbability,
+    .updateRuntimeInfo = &updateRuntimeInfo,
+    .compareSoln = &compareSoln,
+    .endSearch = &endSearch
 };
 
 } // namespace Schwefel
