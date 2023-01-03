@@ -16,6 +16,7 @@ struct SA_policy
     int numAcceptedCurrTemp; // number of solutions accepted at current temperature
     int numCurrTemp; // number of trials at current temperature
     int numTempSteps; // number of temperature changes
+    int numNoProgress; // number of iterations where no solution is accepted
 };
 
 // problem specific methods (to be defined for each optimisation problem)
@@ -30,6 +31,7 @@ struct ProblemCtx
     void (*updateRuntimeInfo)(std::unordered_map<std::string, float>&, SA_policy<T>&, T&, T&, bool)=nullptr;
     bool (*compareSoln)(T&, T&) = nullptr;
     bool (*endSearch)(std::unordered_map<std::string, float>&, SA_policy<T>&) = nullptr;
+    bool (*restart)(std::unordered_map<std::string, float>&, SA_policy<T>&) = nullptr;
 };
 
 template <typename T>
@@ -98,7 +100,7 @@ public:
         _acceptProbs.clear();
         int progressCounter = 0;
         std::uniform_real_distribution<float> uniformDist{0, 1.0};
-        std::cout << "intial: " << _runtimeInfo.temperature << '\n';
+        std::cout << "intial temperature : " << _runtimeInfo.temperature << '\n';
 
         // do the optimisation
         while((progressCounter < _parameters["max iterations"]) && (!_problemCtx.endSearch(_parameters, _runtimeInfo)))
@@ -121,6 +123,8 @@ public:
             {
                 // update runtimeinfo knowing that new solution is rejected
                 _problemCtx.updateRuntimeInfo(_parameters, _runtimeInfo, newSoln, _currSoln, false);
+                // restart the search if necessary
+                if(_problemCtx.restart(_parameters, _runtimeInfo)) _currSoln = _bestSoln;
             }
         }
     }

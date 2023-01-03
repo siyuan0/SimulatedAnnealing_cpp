@@ -24,8 +24,12 @@ int main(int argc,
         auto finish = std::chrono::high_resolution_clock::now();
         std::cout << "Optimisation took " << 
                 std::chrono::duration_cast<std::chrono::milliseconds>(finish-start).count() << "ms\n";
-        SAinst.printAllToFile("allSolutions.txt");
-        SAinst.printAcceptedToFile("acceptedSolutions.txt");
+        if(jmap["print results"])
+        {
+            std::cout << "results saved to allSolutions.txt and acceptedSolutions.txt\n";
+            SAinst.printAllToFile("allSolutions.txt");
+            SAinst.printAcceptedToFile("acceptedSolutions.txt");
+        }
         std::cout << "number of function evaluations: " << Schwefel::num_of_evaluations << '\n';
         std::cout << "final temperature: " << SAinst.getRuntimeInfo().temperature << '\n';
         std::cout << "current solution: " << SAinst.getOptimisationResult().first.print() << '\n';

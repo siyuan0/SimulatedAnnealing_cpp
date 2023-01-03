@@ -11,8 +11,9 @@
 #include <algorithm>
 #include <utility>
 #include <limits>
+#include <sstream>
 
-#define DIMENSION 2 // to change this define for number of dimensions considered
+#define DIMENSION 6 // to change this define for number of dimensions considered
 
 namespace Schwefel
 {
@@ -44,7 +45,8 @@ public:
     {  // randomly generate a soln within the provided constraints
         _lbound = lowerbound;
         _ubound = upperbound;
-        for(int i=0; i<DIMENSION; i++) x[i] = lowerbound +  float(std::rand()) / RAND_MAX * (upperbound-lowerbound);
+        std::uniform_real_distribution<float> urand{lowerbound, upperbound};
+        for(int i=0; i<DIMENSION; i++) x[i] = urand(Schwefel::randomGen);
         f = 0;
     }
 
@@ -86,16 +88,42 @@ void setRandomGen(std::mt19937& gen)
     randomGen = gen;
 }
 
+float l2(soln& s1, soln& s2)
+{  // get the l2 norm of s1-s2
+    float sum = 0; 
+    for(int i=0; i<DIMENSION; i++) sum += std::pow(s1.getX(i) - s2.getX(i), 2);
+    return std::pow(sum, 0.5);
+}
+
+float findStdDev(std::unordered_map<std::string, float>& parameters)
+{   // perform initial search to get the standard deviation of the object function in search space
+    float e_f = 0;  // to find E[f]
+    float e_f2 = 0; // to find E[f^2]
+    for(int i=0; i<parameters["initial search size"]; i++)
+    {
+        soln s{parameters["min xi"], parameters["max xi"]};
+        s.doEval();
+        e_f += s.getEval();
+        e_f2 += (s.getEval() * s.getEval());
+    }
+    e_f /= parameters["initial search size"]; // E[f]
+    e_f2 /= parameters["initial search size"]; // E[f^2]
+    float variance = e_f2 - e_f * e_f; // variance = E[f^2] - E[f]^2
+    return std::pow(variance, 0.5); // to get standard deviation
+}
+
 SA_policy<soln> initialiseRuntimeInfo(std::unordered_map<std::string, float>& parameters)
-{
+{   // initialise the runtime parameters with starting values
     soln initialMaxChange{};
     for(int i=0; i<DIMENSION; i++) initialMaxChange.setX(i, parameters["initial max change"]);
+    float initialtemperature = findStdDev(parameters);
     return {
-        .temperature = parameters["initial temperature"],
+        .temperature = initialtemperature,
         .maxChange = initialMaxChange,
         .numAcceptedCurrTemp = 0,
         .numCurrTemp = 0,
-        .numTempSteps = 1
+        .numTempSteps = 1,
+        .numNoProgress = 0
     };
 }
 
@@ -129,7 +157,7 @@ float acceptProbability(std::unordered_map<std::string, float>& parameters,
                         SA_policy<soln>& runtimeInfo, soln& newSoln, soln& currSoln)
 {   // get the acceptance probability of newsoln given curr soln
     // better solutions are always accepted
-    return std::exp(-(newSoln.getEval() - currSoln.getEval())/runtimeInfo.temperature);
+    return std::exp(-(newSoln.getEval() - currSoln.getEval())/(runtimeInfo.temperature * l2(newSoln, currSoln)));
 }
 
 void updateRuntimeInfo(std::unordered_map<std::string, float>& parameters, 
@@ -143,9 +171,11 @@ void updateRuntimeInfo(std::unordered_map<std::string, float>& parameters,
         );
         runtimeInfo.numAcceptedCurrTemp += 1;
         runtimeInfo.numCurrTemp += 1;
+        runtimeInfo.numNoProgress = 0;
     }else
     {
         runtimeInfo.numCurrTemp += 1;
+        runtimeInfo.numNoProgress += 1;
     }
     if((runtimeInfo.numAcceptedCurrTemp > parameters["min accepted at each temperature"]) |
        (runtimeInfo.numCurrTemp > parameters["max same temperature chain"]))
@@ -175,6 +205,11 @@ bool endSearch(std::unordered_map<std::string, float>& parameters, SA_policy<sol
     }
 }
 
+bool restartSearch(std::unordered_map<std::string, float>& parameters, SA_policy<soln>& runtimeInfo)
+{   // restarts if there has been no progress for more iterations than threshold
+    return runtimeInfo.numNoProgress > parameters["restart threshold"];
+}
+
 // store the problem specific methods for the SA core to run on
 static ProblemCtx<soln> problemCtx = {
     .setRandomGenerator = &setRandomGen,
@@ -184,7 +219,8 @@ static ProblemCtx<soln> problemCtx = {
     .acceptProbability = &acceptProbability,
     .updateRuntimeInfo = &updateRuntimeInfo,
     .compareSoln = &compareSoln,
-    .endSearch = &endSearch
+    .endSearch = &endSearch,
+    .restart = &restartSearch
 };
 
 } // namespace Schwefel

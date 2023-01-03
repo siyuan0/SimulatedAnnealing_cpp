@@ -31,9 +31,12 @@ def schwefel2D():
 def visualisePopulation(path, savepath):
     data = np.loadtxt(path, delimiter=',')
     cs = plt.contour(X1, X2, f.reshape(X1.shape), 10)
-    plt.colorbar(cs, shrink=0.5, aspect=10)
-    plt.scatter(data[:,0], data[:,1], marker='o', edgecolor='black', linewidth=1, c=np.arange(data.shape[0]), cmap='Reds')
+    cm = plt.cm.get_cmap('Reds')
+    
+    sc = plt.scatter(data[:,0], data[:,1], marker='x', c=np.arange(data.shape[0]), cmap=cm)
     # plt.legend(bbox_to_anchor=(1, 1.05))
+    plt.colorbar(cs, shrink=0.5, aspect=10)
+    plt.colorbar(sc)
     plt.savefig(savepath)
     plt.close()
     print("saved figure at: ", savepath)
@@ -43,7 +46,7 @@ def bestSoln(path):
     print(data[np.argmin(data[:,2])])
 
 # schwefel2D()
-visualisePopulation("Debug/allSolutions.txt", "2d_all.png")
+visualisePopulation("Release/allSolutions.txt", "2d_all.png")
 # visualisePopulation("Debug/acceptedSolutions.txt", "2d_accepted.png")
 # for i in [20, 40, 60, 80, 100]:
 #     datapath = "Release/Results/iter" + str(i) + ".txt"
