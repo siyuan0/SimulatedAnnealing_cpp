@@ -85,8 +85,10 @@ public:
         outfile.close();
     }
 
+    // get the curr soluton and best solution found
     std::pair<T,T> getOptimisationResult(){ return {_currSoln, _bestSoln}; }
 
+    // retrieve the runtime information
     SA_policy<T> getRuntimeInfo(){ return _runtimeInfo; }
 
     void optimise()
@@ -105,10 +107,15 @@ public:
         // do the optimisation
         while((progressCounter < _parameters["max iterations"]) && (!_problemCtx.endSearch(_parameters, _runtimeInfo)))
         {
+            // get a new solution
             T newSoln = _problemCtx.getNewSolution(_parameters, _runtimeInfo, _currSoln);
+
+            // update all the trackers
             _allSolns.push_back(_currSoln);
             _annealingSchedule.push_back(_runtimeInfo.temperature);
             _acceptProbs.push_back(_problemCtx.acceptProbability(_parameters, _runtimeInfo, newSoln, _currSoln));
+
+            // generate a value in (0, 1) for probability acceptance
             float u = uniformDist(_randGen);
             if(u < _problemCtx.acceptProbability(_parameters, _runtimeInfo, newSoln, _currSoln))
             {

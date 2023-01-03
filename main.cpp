@@ -14,10 +14,12 @@ int main(int argc,
         std::cout << "missing paramters.json file\n";
     }else if(argc==2)
     {
+        // get the parameter data
         std::ifstream f(argv[1]);
         nlohmann::json data = nlohmann::json::parse(f);
         auto jmap = data.get<std::unordered_map<std::string, float>>();
 
+        // perform SA
         SA<Schwefel::soln> SAinst(Schwefel::problemCtx, jmap);
         auto start = std::chrono::high_resolution_clock::now();
         SAinst.optimise();
